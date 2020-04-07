@@ -66,6 +66,16 @@ class PactRequestMimic:
         return cls.request("delete", url, **kwargs)
 
 
+class MockServer:
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+    @property
+    def url(self):
+        return f'http://{self.host}:{self.port}'
+
+
 class ConsumerPactTest(TestCase):
     """
     The ConsumerPactTest is a wrapper around the pactman which is more pythonic; You can inherit and
@@ -113,6 +123,7 @@ class ConsumerPactTest(TestCase):
     provider_name = None  # name of the provider as string
     provider_state_description = None
     provider_request_description = None
+    mock_server_port = 8155
 
     _pact = None
 
@@ -125,7 +136,7 @@ class ConsumerPactTest(TestCase):
     def get_pact(self):
         if not self.__class__._pact:
             self.__class__._pact = Consumer(self.consumer_name).has_pact_with(
-                Provider(self.provider_name), version="3.0.0", port=8155
+                Provider(self.provider_name), version="3.0.0", port=self.mock_server_port
             )
         return self.__class__._pact
 
@@ -155,4 +166,4 @@ class ConsumerPactTest(TestCase):
             self.provider_request_description
         ).with_request(**request._asdict()).will_respond_with(**response._asdict())
         with pact:
-            yield
+            yield MockServer('localhost', self.mock_server_port)
