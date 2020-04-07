@@ -33,10 +33,11 @@ Usage Example
             response = self.response(204)
     
             # kick off the pact server in a context-manager
-            with self.pact_mock_server(request, response):
+            with self.pact_mock_server(request, response) as server:
                 # You should call your integration here instead of a plain requests call
                 requests.delete(
-                    f"http://fakeservice/manage/customer/123", headers={"x-api-key": "consumer-api-key"}
+                    f"{server.url}/manage/customer/123",
+                    headers={"x-api-key": "consumer-api-key"},
                 )
 
 The magic parts here are the class-attributes that are used to initialize the pact server thingy.
