@@ -11,8 +11,8 @@ This means that you should be able to go from making a single test-api call to
 production-ready and pact-tested much faster.
 
 
-Usage Example
--------------
+Creating Pacts as Consumer
+--------------------------
 
     import requests
     from pact_test_utils.testcase import ConsumerPactTest
@@ -46,3 +46,34 @@ Other three things are:
  - `self.response` which is a thin layer around the `pact.with_response` call
     and finally
  - the context manager `self.pact_mock_server` which brings all of these together.
+
+Verifying pacts as Producer
+---------------------------
+
+To verify pacts you need to reproduce the correct state for the consumer.
+All of these instructions how to produce a certain state are kept in a registry
+for the tests to run in, called `PactStates`.
+
+    import os
+    import pytest
+    from pact_test_utils.producer import PactStates, verify_pacts
+    
+    # create a new registry for pact states to be referenced in
+    states = PactStates()
+    
+    # you can mark functions that reproduce a certain state using the `states.add`
+    # decorator.
+    @states.add("OtherService", "the in app shop service is e.g. drinking milk")
+    def in_app_shop_service_drinks_milk():
+        from unittest.mock import MagicMock
+    
+        cow = MagicMock()
+        milk = cow.spin()
+        milk.drink()
+    
+
+    # This part is the only one required to be copied into your test-suite
+    # for all pact tests to be executed.    
+    @pytest.mark.usefixtures("live_server", "pact_verifier")
+    def test_pacts(live_server, pact_verifier):
+        verify_pacts(live_server, pact_verifier, states)

@@ -1,4 +1,4 @@
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import logging
 from functools import wraps
 from pactman.verifier.verify import ProviderStateError
@@ -6,16 +6,11 @@ from pactman.verifier.verify import ProviderStateError
 logger = logging.getLogger(__name__)
 
 
-class PactRegistry:
+class PactStates:
     def __init__(self):
         self.state_registry = {}
 
-    def add(self, consumer, state_name, state_func, mocks=None):
-        if mocks is None:
-            mocks = []
-        self.state_registry[(consumer, state_name)] = (state_func, mocks)
-
-    def get(self, consumer, state_name):
+    def _get(self, consumer, state_name):
         try:
             return self.state_registry[(consumer, state_name)]
         except KeyError:
@@ -23,17 +18,30 @@ class PactRegistry:
                 f"Missing state provider for consumer:\n@pact_state('{consumer}', '{state_name}')"
             )
 
+    def _set(self, consumer, state_name, func, mocks):
+        self.state_registry[(consumer, state_name)] = (func, mocks)
+
     def prepare_state(self, consumer, state_name):
-        func, mocks = self.get(consumer, state_name)
+        func, mocks = self._get(consumer, state_name)
         func()
 
     def get_mocks(self, consumer, state_name):
-        func, mocks = self.get(consumer, state_name)
+        func, mocks = self._get(consumer, state_name)
         return mocks
 
-    def state(self, consumer, state_name, mocks=None):
+    @contextmanager
+    def enable_mocks(self, consumer_name, state_name):
+        with ExitStack() as stack:
+            for mock in self.get_mocks(consumer_name, state_name):
+                stack.enter_context(mock())
+            yield
+
+    def add(self, consumer, state_name, mocks=None):
+        if mocks is None:
+            mocks = []
+
         def outer(func):
-            self.add(consumer, state_name, func, mocks=mocks)
+            self._set(consumer, state_name, func, mocks)
 
             @wraps(func)
             def inner(*args, **kwds):
@@ -51,7 +59,7 @@ def _make_provider_state(pact_registry):
     return provider_state
 
 
-def verify_pacts(pact_verifier, live_server, pact_registry):
+def verify_pacts(pact_verifier, live_server, states):
     if pact_verifier.interaction.providerState:
         state_name = pact_verifier.interaction.providerState
     else:
@@ -60,9 +68,6 @@ def verify_pacts(pact_verifier, live_server, pact_registry):
         ), "Pact interaction must have exactly one state!"
         state_name = pact_verifier.interaction.providerStates[0]["name"]
     consumer_name = pact_verifier.interaction.pact.consumer
-    mocks = pact_registry.get_mocks(consumer_name, state_name)
 
-    with ExitStack() as stack:
-        for mock in mocks:
-            stack.enter_context(mock())
-        pact_verifier.verify(live_server.url, _make_provider_state(pact_registry))
+    with states.enable_mocks(consumer_name, state_name):
+        pact_verifier.verify(live_server.url, _make_provider_state(states))
