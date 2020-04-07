@@ -38,3 +38,10 @@ Usage Example
                 requests.delete(
                     f"http://fakeservice/manage/customer/123", headers={"x-api-key": "consumer-api-key"}
                 )
+
+The magic parts here are the class-attributes that are used to initialize the pact server thingy.
+Other three things are:
+ - `self.requests` which is the pact-requests-translation layer
+ - `self.response` which is a thin layer around the `pact.with_response` call
+    and finally
+ - the context manager `self.pact_mock_server` which brings all of these together.
