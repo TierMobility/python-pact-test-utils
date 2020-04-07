@@ -1,0 +1,7 @@
+[tool.black]
+# that's 100 char lines + 10% head-room
+line-length = 110
+# black would use double-quotes by default, but that's just not my bike-shed color.
+skip-string-normalization = true
+target-version = ["py37"]
+exclude = 'build/|buck-out/|dist/|_build/|\.eggs/|\.git/|\.hg/|\.mypy_cache/|\.nox/|\.tox/|\.?venv/|migrations/'
